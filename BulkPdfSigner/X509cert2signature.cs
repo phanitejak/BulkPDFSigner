@@ -6,9 +6,7 @@ namespace BulkPdfSigner
 {
     public class X509Certificate2Signature : IExternalSignature
     {
-        /// <summary>
         /// The certificate with the private key
-        /// </summary>
         private X509Certificate2 certificate;
         /** The hash algorithm. */
         private String hashAlgorithm;
