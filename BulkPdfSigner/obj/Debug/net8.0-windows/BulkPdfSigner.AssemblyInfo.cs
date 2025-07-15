@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BulkPdfSigner")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2983517867cd71e807d1acb951357ce15adc08bb")]
 [assembly: System.Reflection.AssemblyProductAttribute("BulkPdfSigner")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BulkPdfSigner")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
