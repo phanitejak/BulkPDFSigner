@@ -200,6 +200,8 @@ public partial class Form1 : Form
         try
         {
             PdfSignatureAppearance signatureAppearance = pdfSigner.GetSignatureAppearance();
+            signatureAppearance.SetReason(null).SetLocation(null);
+
             if (page_opt == "lastpage" && (user_info[3] == "ALL" || user_info[3] == "SACFA"))
             {
                 // Create the signature appearance
