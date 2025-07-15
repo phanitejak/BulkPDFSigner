@@ -2,6 +2,7 @@
 bin/
 obj/
 *.exe
+installer/
 
 # User-specific files
 *.user
