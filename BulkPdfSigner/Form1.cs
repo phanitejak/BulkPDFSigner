@@ -200,7 +200,6 @@ public partial class Form1 : Form
         try
         {
             PdfSignatureAppearance signatureAppearance = pdfSigner.GetSignatureAppearance();
-            signatureAppearance.SetReason(null).SetLocation(null);
 
             if (page_opt == "lastpage" && (user_info[3] == "ALL" || user_info[3] == "SACFA"))
             {
@@ -218,6 +217,7 @@ public partial class Form1 : Form
             {
                 pdfSigner.SetFieldName("Signature 1");
             }
+            signatureAppearance.SetReason(null).SetLocation(null);
             signatureAppearance.SetRenderingMode(PdfSignatureAppearance.RenderingMode.NAME_AND_DESCRIPTION);
             pdfSigner.SignDetached(externalSignature, chain, null, null, null, 0, PdfSigner.CryptoStandard.CMS);
             result = true;
