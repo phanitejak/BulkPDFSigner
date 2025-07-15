@@ -1,6 +1,6 @@
 [Setup]
 AppName=Bulk PDF Signer
-AppVersion=2025.07.15
+AppVersion=2025.07.16
 DefaultDirName={userappdata}\BulkPdfSigner
 DefaultGroupName=BulkPdfSigner
 OutputDir=installer
