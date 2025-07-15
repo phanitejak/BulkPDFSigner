@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import json
 
@@ -62,16 +62,27 @@ def get_license():
 @app.route('/license', methods=['POST'])
 def create_license():
     data = request.get_json()
-    required_fields = ['username', 'circle', 'valid_till', 'lic_type']
+    required_fields = ['username', 'circle', 'lic_type']
 
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"Missing field: {field}"}), 400
+    
+    lic_type = data['lic_type'].strip().upper()
+    today = datetime.today()
 
-    try:
-        datetime.strptime(data['valid_till'], "%d-%m-%Y")
-    except ValueError:
-        return jsonify({"error": "Invalid date format. Use DD-MM-YYYY"}), 400
+    if lic_type == "TRIAL":
+        valid_till = today + timedelta(days=2)
+    elif lic_type == "ALL":
+        valid_till = today + timedelta(days=365)
+    elif lic_type == "BULKPDF":
+        valid_till = today + timedelta(days=180)
+    elif lic_type == "SACFA":
+        valid_till = today + timedelta(days=90)
+    else:
+        return jsonify({"error": "Invalid license type"}), 400
+
+    valid_till_str = valid_till.strftime("%d-%m-%Y")
 
     records = license_sheet.get_all_records()
     for row in records:
@@ -79,9 +90,13 @@ def create_license():
             return jsonify({"error": "Username already exists"}), 409
 
     license_sheet.append_row([
-        data['username'], data['circle'], data['valid_till'], data['lic_type']
+        data['username'], data['circle'], valid_till_str, lic_type
     ])
-    log_action("CREATE", data['username'], data)
+    log_action("CREATE", data['username'], {
+        "circle": data['circle'],
+        "valid_till": valid_till_str,
+        "lic_type": lic_type
+    })
     return jsonify({"message": "License created"}), 201
 
 
