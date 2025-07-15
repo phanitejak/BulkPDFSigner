@@ -6,66 +6,52 @@ namespace BulkPdfSigner
 {
     public class X509Certificate2Signature : IExternalSignature
     {
-        /// The certificate with the private key
-        private X509Certificate2 certificate;
-        /** The hash algorithm. */
-        private String hashAlgorithm;
-        /** The encryption algorithm (obtained from the private key) */
-        private String encryptionAlgorithm;
+        private readonly X509Certificate2 certificate;
+        private readonly string hashAlgorithm;
+        private readonly string encryptionAlgorithm;
 
-        /// <summary>
-        /// Creates a signature using a X509Certificate2. It supports smartcards without 
-        /// exportable private keys.
-        /// </summary>
-        /// <param name="certificate">The certificate with the private key</param>
-        /// <param name="hashAlgorithm">The hash algorithm for the signature. As the Windows CAPI is used
-        /// to do the signature the only hash guaranteed to exist is SHA-1</param>
-        public X509Certificate2Signature(X509Certificate2 certificate, String hashAlgorithm)
+        public X509Certificate2Signature(X509Certificate2 certificate, string hashAlgorithm)
         {
             if (!certificate.HasPrivateKey)
-                throw new ArgumentException("No private key.");
+                throw new ArgumentException("Certificate does not have a private key.");
+
             this.certificate = certificate;
             this.hashAlgorithm = DigestAlgorithms.GetDigest(DigestAlgorithms.GetAllowedDigest(hashAlgorithm));
-            if (certificate.PrivateKey is RSACryptoServiceProvider)
+
+            if (certificate.PrivateKey is RSA)
                 encryptionAlgorithm = "RSA";
-            else if (certificate.PrivateKey is DSACryptoServiceProvider)
+            else if (certificate.PrivateKey is DSA)
                 encryptionAlgorithm = "DSA";
             else
-                throw new ArgumentException("Unknown encryption algorithm " + certificate.PrivateKey);
+                throw new ArgumentException("Unsupported private key algorithm: " + certificate.PrivateKey.GetType().Name);
         }
 
-        public virtual byte[] Sign(byte[] message)
+        public string GetEncryptionAlgorithm() => encryptionAlgorithm;
+
+        public string GetHashAlgorithm() => hashAlgorithm;
+
+        public byte[] Sign(byte[] message)
         {
-            if (certificate.PrivateKey is RSACryptoServiceProvider)
+            if (certificate.PrivateKey is RSA rsa)
             {
-                RSACryptoServiceProvider rsa = (RSACryptoServiceProvider)certificate.PrivateKey;
-                return rsa.SignData(message, hashAlgorithm);
+                var hash = HashData(message, hashAlgorithm);
+                return rsa.SignHash(hash, new HashAlgorithmName(hashAlgorithm), RSASignaturePadding.Pkcs1);
+            }
+            else if (certificate.PrivateKey is DSA dsa)
+            {
+                var hash = HashData(message, hashAlgorithm);
+                return dsa.CreateSignature(hash);
             }
             else
             {
-                DSACryptoServiceProvider dsa = (DSACryptoServiceProvider)certificate.PrivateKey;
-                return dsa.SignData(message);
+                throw new CryptographicException("Unsupported key type");
             }
         }
 
-        /**
-         * Returns the hash algorithm.
-         * @return  the hash algorithm (e.g. "SHA-1", "SHA-256,...")
-         * @see com.itextpdf.text.pdf.security.ExternalSignature#getHashAlgorithm()
-         */
-        public virtual String GetHashAlgorithm()
+        private static byte[] HashData(byte[] message, string hashAlgorithm)
         {
-            return hashAlgorithm;
-        }
-
-        /**
-         * Returns the encryption algorithm used for signing.
-         * @return the encryption algorithm ("RSA" or "DSA")
-         * @see com.itextpdf.text.pdf.security.ExternalSignature#getEncryptionAlgorithm()
-         */
-        public virtual String GetEncryptionAlgorithm()
-        {
-            return encryptionAlgorithm;
+            using HashAlgorithm hasher = HashAlgorithm.Create(hashAlgorithm) ?? throw new InvalidOperationException("Unsupported hash algorithm");
+            return hasher.ComputeHash(message);
         }
     }
 }
