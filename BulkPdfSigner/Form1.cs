@@ -1,0 +1,341 @@
+using System.Data;
+using System.Globalization;
+using System.Security.Cryptography.X509Certificates;
+using Org.BouncyCastle.X509;
+using iText.Kernel.Pdf;
+using iText.Signatures;
+using iText.Kernel.Geom;
+
+namespace BulkPdfSigner;
+
+public partial class Form1 : Form
+{
+    X509Certificate2? x509Certificate;
+    string[] PathFileName = { };
+    string targetloc = "";
+    private string page_opt = "";
+    string[] user_info = { "", "", "", "" };
+    private bool _trial = false;
+    private bool _activated = false;
+    X509Certificate2Collection? x509Certificate2Collection;
+    CultureInfo provider = CultureInfo.InvariantCulture;
+
+    public Form1(bool IsTrial)
+    {
+        InitializeComponent();
+        Shown += Form1_Shown;
+        FormClosed += Form1_FormClosed;
+        FormClosing += Form1_FormClosing;
+
+        msglabel.Visible = false;
+        Text = "Bulk PDF Signer --- Copyright, " + DateTime.Now.Year;
+    }
+
+    public Form1()
+    {
+    }
+
+    private void Form1_FormClosing(object? sender, FormClosingEventArgs e)
+    {
+        MessageBoxManager.Unregister();
+    }
+
+    private void Form1_FormClosed(object? sender, FormClosedEventArgs e)
+    {
+        MessageBoxManager.Unregister();
+    }
+
+    private void Form1_Shown(object? sender, EventArgs e)
+    {
+        status_msgbox.AppendText("Activating Software..." + Environment.NewLine);
+
+        X509Store x509Store = new X509Store(StoreLocation.CurrentUser);
+        x509Store.Open(OpenFlags.ReadOnly);
+        x509Certificate2Collection = X509Certificate2UI.SelectFromCollection(x509Store.Certificates, "Select certificate", "", X509SelectionFlag.SingleSelection);
+        x509Store.Close();
+
+        if (x509Certificate2Collection.Count <= 0)
+        {
+            MessageBox.Show("No Certificate selected.");
+            status_msgbox.AppendText(Environment.NewLine);
+            status_msgbox.AppendText("No Certificate Selected.");
+            status_msgbox.AppendText(Environment.NewLine);
+        }
+        else
+        {
+            x509Certificate = (X509Certificate2)((X509CertificateCollection)x509Certificate2Collection)[x509Certificate2Collection.Count - 1];
+            if (!get_userinfo(x509Certificate.GetNameInfo(X509NameType.SimpleName, false)))
+            {
+                if (_trial)
+                {
+                    MessageBoxManager.OK = "Start Trial";
+                    MessageBoxManager.Cancel = "Quit";
+                    DialogResult dres = MessageBox.Show("This product is not Registered.", "License Status", MessageBoxButtons.OKCancel);
+                    MessageBoxManager.OK = "OK";
+                    MessageBoxManager.Cancel = "Cancel";
+                    if (dres == DialogResult.Cancel)
+                    {
+                        Application.Exit();
+                    }
+                }
+                else
+                {
+                    Application.Exit();
+                }
+            }
+        }
+    }
+
+    private bool get_userinfo(string user)
+    {
+        bool status = false;
+        string pkfile = AppDomain.CurrentDomain.BaseDirectory + @"\apikey_kpteja.json";
+
+        status_msgbox.AppendText("Contacting Licensing Server..." + Environment.NewLine);
+
+        GoogleSheetsHelper gsh = new GoogleSheetsHelper(pkfile, "1FKnY8mhgBd8cbHmAORP0BjeiwxSLnMF1zPEnCW2H_a4", "kpteja@api-project-395839217553.iam.gserviceaccount.com");
+        var gsp = new GoogleSheetParameters()
+        {
+            RangeColumnStart = 1,
+            RangeRowStart = 1,
+            RangeColumnEnd = 4,
+            RangeRowEnd = 1000,
+            FirstRowIsHeaders = true,
+            SheetName = "sheet1"
+        };
+        var lic_data = gsh.GetDataTableFromSheet(gsp);
+        bool user_found = false;
+
+        foreach (DataRow row in lic_data.Rows)
+        {
+            if (row["username"].ToString() == user)
+            {
+                user_found = true;
+
+                user_info[0] = row["username"].ToString();
+                user_info[1] = row["circle"].ToString();
+                user_info[2] = row["valid_till"].ToString();
+                switch (Convert.ToInt32(row["lic_type"].ToString()))
+                {
+                    case 1:
+                        user_info[3] = "ALL";
+                        break;
+                    case 2:
+                        user_info[3] = "BulkPDF";
+                        break;
+                    case 3:
+                        user_info[3] = "SACFA";
+                        break;
+                    default:
+                        user_info[3] = "Trial";
+                        _trial = true;
+                        break;
+                }
+                if (DateTime.Now > DateTime.ParseExact(user_info[2], "dd-MM-yyyy", provider))
+                {
+                    status_msgbox.AppendText("This software is licensed till " + user_info[2] + " Only. Please contact administrator.");
+                    status_msgbox.AppendText(Environment.NewLine);
+                    MessageBox.Show("This software is licensed till " + user_info[2] + " Only. Please contact administrator.");
+                }
+                else
+                {
+                    MessageBox.Show("License Found !!! Software is Activated." + Environment.NewLine + Environment.NewLine + "This product is licensed to Mr. " + user_info[0] + " of " + user_info[1] + " Circle & is valid till " + user_info[2], "Licensing Details");
+                    status_msgbox.AppendText("License Found !!! Software is Activated." + Environment.NewLine + Environment.NewLine + "This product is licensed to Mr. " + user_info[0] + " of " + user_info[1] + " Circle & is valid till " + user_info[2]);
+                    status = true;
+                    _activated = true;
+                }
+            }
+        }
+
+        if (!user_found)
+        {
+            status_msgbox.AppendText("No License available for " + user + ". Please contact administrator.");
+            status_msgbox.AppendText(Environment.NewLine);
+            MessageBox.Show("No License available for " + user + ". Please contact administrator.");
+            user_info[0] = user;
+            user_info[1] = "Trail";
+            user_info[2] = "";
+            user_info[3] = "ALL";
+            _trial = true;
+            _activated = true;
+        }
+
+        return status;
+    }
+
+    public bool signPdfFile(string sourceDocument, string destinationPath, X509Certificate2 cert)
+    {
+        bool result = false;
+        X509CertificateParser x509CertificateParser = new X509CertificateParser();
+        Org.BouncyCastle.X509.X509Certificate[] chain = new Org.BouncyCastle.X509.X509Certificate[1] { x509CertificateParser.ReadCertificate(cert.RawData) };
+
+        PdfDocument pdfDoc = new PdfDocument(new PdfReader(sourceDocument));
+        int lastpage = pdfDoc.GetNumberOfPages();
+        pdfDoc.Close();
+        PdfReader pdfReader = new PdfReader(sourceDocument);
+        FileStream dest_pdf = new FileStream(destinationPath, FileMode.Create, FileAccess.ReadWrite);
+        PdfSigner pdfSigner = new PdfSigner(pdfReader, dest_pdf, new StampingProperties());
+
+        try
+        {
+            PdfSignatureAppearance signatureAppearance = pdfSigner.GetSignatureAppearance();
+            if (page_opt == "lastpage" && (user_info[3] == "ALL" || user_info[3] == "SACFA"))
+            {
+                // Create the signature appearance
+                iText.Kernel.Geom.Rectangle rect = new iText.Kernel.Geom.Rectangle(36, 648, 200, 100);
+                signatureAppearance
+                    // Specify if the appearance before field is signed will be used
+                    // as a background for the signed field. The "false" value is the default value.
+                    .SetReuseAppearance(false)
+                    .SetPageRect(rect)
+                    .SetPageNumber(lastpage);
+                pdfSigner.SetFieldName("signature1");
+            }
+            else
+            {
+                pdfSigner.SetFieldName("Signature 1");
+            }
+            signatureAppearance.SetRenderingMode(PdfSignatureAppearance.RenderingMode.NAME_AND_DESCRIPTION);
+            IExternalSignature externalSignature = new X509Certificate2Signature(cert, "SHA256");
+            pdfSigner.SignDetached(externalSignature, chain, null, null, null, 0, PdfSigner.CryptoStandard.CMS);
+            result = true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message);
+        }
+        finally
+        {
+            pdfReader.Close();
+        }
+        return result;
+    }
+
+    private void aboutToolStrip_Click(object sender, EventArgs e)
+    {
+        if (_activated)
+        {
+            if (_trial)
+            {
+                MessageBox.Show("This software is designed by Phaniteja K. Please contact or Whatsapp on +91 9848003093, or Mail me at kondapalliphaniteja@gmail.com" + Environment.NewLine + Environment.NewLine + "This product is a Trial Version and Can be used for 2 days from the date of installation for 5 times. A maximum of 20 PDFs can be signed per usage.", "Licensing Details");
+            }
+            else
+            {
+                MessageBox.Show("This software is designed by Phaniteja K. Please contact or Whatsapp on +91 9848003093, or Mail me at kondapalliphaniteja@gmail.com" + Environment.NewLine + Environment.NewLine + "This product is licensed to Mr. " + user_info[0] + " of " + user_info[1] + " Circle & is valid till " + user_info[2], "Licensing Details");
+            }
+        }
+        else
+        {
+            MessageBox.Show("This software is not activated either by trial or full. Please close and re-open software and select Licensed certificate to Activate.");
+        }
+    }
+
+    private void beginsigning_Click_1(object sender, EventArgs e)
+    {
+        if (_activated && (DateTime.Now <= DateTime.ParseExact(user_info[2], "dd-MM-yyyy", provider)))
+        {
+            x509Certificate = (X509Certificate2)((X509CertificateCollection)x509Certificate2Collection)[0];
+            if (PathFileName == null)
+            {
+                MessageBox.Show("No files selected.");
+                status_msgbox.AppendText(Environment.NewLine);
+                status_msgbox.AppendText("No Files Selected.");
+                status_msgbox.AppendText(Environment.NewLine);
+            }
+            else if (targetloc == string.Empty)
+            {
+                targetloc = textBox1.Text + "\\Result\\";
+                if (textBox2.Text == string.Empty)
+                {
+                    textBox2.Text = targetloc;
+                }
+                else if (!Directory.Exists(textBox2.Text))
+                {
+                    MessageBox.Show("Entered target location is not valid... Please enter and try again.");
+                    status_msgbox.AppendText(Environment.NewLine);
+                    status_msgbox.AppendText("Entered target location is not valid... Please enter and try again.");
+                    status_msgbox.AppendText(Environment.NewLine);
+                }
+            }
+            else if (PathFileName.Count() > 5 && _trial)
+            {
+                MessageBox.Show("This is trial version. You cannot select more than 5 files in one go.");
+            }
+            else
+            {
+                pgbar.Step = 1;
+                pgbar.Maximum = PathFileName.Count();
+                pgbar.Minimum = 0;
+                string[] pathFileName = PathFileName;
+                foreach (string text in pathFileName)
+                {
+                    status_msgbox.AppendText("Processing file .... " + System.IO.Path.GetFileName(text));
+                    if (signPdfFile(text, targetloc + "\\" + System.IO.Path.GetFileName(text).ToString(), x509Certificate))
+                    {
+                        pgbar.PerformStep();
+                        status_msgbox.AppendText("...... Document Signed.");
+                        status_msgbox.AppendText(Environment.NewLine);
+                    }
+                    else
+                    {
+                        status_msgbox.AppendText(Environment.NewLine);
+                        status_msgbox.AppendText("Document cannot be signed due to error.");
+                        status_msgbox.AppendText(Environment.NewLine);
+                    }
+                }
+            }
+        }
+        else
+        {
+            MessageBox.Show("This software is not activated either by trial or full or the Validity might have expired. Please close and re-open software and select Licensed certificate to Activate.");
+            status_msgbox.AppendText(Environment.NewLine + "Validity : " + user_info[2] + Environment.NewLine + "This software is not activated either by trial or full. Please close and re-open software and select Licensed certificate to Activate." + Environment.NewLine);
+        }
+    }
+
+    private void Browse_SF_Click(object sender, EventArgs e)
+    {
+        openFileDialog1.Multiselect = true;
+        if (openFileDialog1.ShowDialog() == DialogResult.OK)
+        {
+            PathFileName = openFileDialog1.FileNames;
+            string directoryName = System.IO.Path.GetDirectoryName(PathFileName[0]);
+            textBox1.Text = directoryName;
+            status_msgbox.AppendText("Source files selected .... " + PathFileName.Count() + " Files...");
+            status_msgbox.AppendText(Environment.NewLine);
+        }
+        else
+        {
+            status_msgbox.AppendText("Source files not selected ...... Operation Aborted or Cancelled by user...");
+            status_msgbox.AppendText(Environment.NewLine);
+        }
+    }
+
+    private void Browse_TF_Click(object sender, EventArgs e)
+    {
+        if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
+        {
+            targetloc = folderBrowserDialog1.SelectedPath.ToString();
+            textBox2.Text = targetloc;
+            status_msgbox.AppendText("Target folder selected .... " + targetloc);
+            status_msgbox.AppendText(Environment.NewLine);
+        }
+        else
+        {
+            status_msgbox.AppendText("Target folder not selected .... Operation cancelled by user");
+            status_msgbox.AppendText(Environment.NewLine);
+        }
+    }
+
+    private void sigLoc_listbox_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (sigLoc_listbox.SelectedItem.ToString() == "Last Page")
+        {
+            page_opt = "lastpage";
+        }
+    }
+
+    private void Form1_Load(object sender, EventArgs e)
+    {
+
+    }
+}
