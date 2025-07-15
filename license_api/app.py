@@ -2,12 +2,18 @@ from flask import Flask, request, jsonify
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import os
+import json
 
 app = Flask(__name__)
 
+# Use credentials from environment variable
+creds_json = os.environ.get("SERVICE_JSON")
+creds_dict = json.loads(creds_json)
+
 # Google Sheets setup
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-creds = ServiceAccountCredentials.from_json_keyfile_name('licenser.json', scope)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 LICENSE_SHEET_ID = "1FKnY8mhgBd8cbHmAORP0BjeiwxSLnMF1zPEnCW2H_a4"
@@ -25,6 +31,11 @@ def log_action(action, username, changes):
         username,
         str(changes)
     ])
+
+
+@app.route("/")
+def home():
+    return "License API is running!"
 
 
 @app.route('/license', methods=['GET'])

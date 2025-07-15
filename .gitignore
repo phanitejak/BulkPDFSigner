@@ -416,3 +416,29 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+########333333333333#############################
+# Project related exclusions
+gs_account.json
+__pycache__/
+*.pyc
+
+# Visual Studio build artifacts
+BulkPdfSigner/bin/
+BulkPdfSigner/obj/
+
+# User-specific files
+BulkPdfSigner/*.user
+BulkPdfSigner/*.suo
+
+# .NET
+BulkPdfSigner/*.pdb
+BulkPdfSigner/*.cache
+BulkPdfSigner/*.log
+
+# Temporary files
+BulkPdfSigner/*.tmp
+BulkPdfSigner/*.bak
+
+# Windows-specific
+BulkPdfSigner/Thumbs.db
