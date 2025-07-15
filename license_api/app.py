@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import json
 
@@ -38,6 +38,12 @@ def home():
     return "License API is running!"
 
 
+@app.before_request
+def require_api_key():
+    if request.path != '/' and request.headers.get('X-API-KEY') != os.environ.get("API_KEY"):
+        return jsonify({"error": "Unauthorized"}), 401
+
+
 @app.route('/license', methods=['GET'])
 def get_license():
     username = request.args.get('username')
@@ -48,17 +54,35 @@ def get_license():
     for row in records:
         if row["username"].strip().lower() == username.strip().lower():
             return jsonify(row), 200
+
+    log_action("GET_FAIL", username, "User not found")
     return jsonify({"error": "User not found"}), 404
 
 
 @app.route('/license', methods=['POST'])
 def create_license():
     data = request.get_json()
-    required_fields = ['username', 'circle', 'valid_till', 'lic_type']
+    required_fields = ['username', 'circle', 'lic_type']
 
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"Missing field: {field}"}), 400
+    
+    lic_type = data['lic_type'].strip().upper()
+    today = datetime.today()
+
+    if lic_type == "TRIAL":
+        valid_till = today + timedelta(days=2)
+    elif lic_type == "ALL":
+        valid_till = today + timedelta(days=365)
+    elif lic_type == "BULKPDF":
+        valid_till = today + timedelta(days=180)
+    elif lic_type == "SACFA":
+        valid_till = today + timedelta(days=90)
+    else:
+        return jsonify({"error": "Invalid license type"}), 400
+
+    valid_till_str = valid_till.strftime("%d-%m-%Y")
 
     records = license_sheet.get_all_records()
     for row in records:
@@ -66,9 +90,13 @@ def create_license():
             return jsonify({"error": "Username already exists"}), 409
 
     license_sheet.append_row([
-        data['username'], data['circle'], data['valid_till'], data['lic_type']
+        data['username'], data['circle'], valid_till_str, lic_type
     ])
-    log_action("CREATE", data['username'], data)
+    log_action("CREATE", data['username'], {
+        "circle": data['circle'],
+        "valid_till": valid_till_str,
+        "lic_type": lic_type
+    })
     return jsonify({"message": "License created"}), 201
 
 
@@ -80,22 +108,36 @@ def update_license():
     if not username:
         return jsonify({"error": "Username is required"}), 400
 
-    records = license_sheet.get_all_records()
-    cell = license_sheet.find(username)
-    if not cell:
-        return jsonify({"error": "User not found"}), 404
+    if 'valid_till' in data:
+        try:
+            datetime.strptime(data['valid_till'], "%d-%m-%Y")
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use DD-MM-YYYY"}), 400
 
-    row_index = cell.row
-    headers = license_sheet.row_values(1)
+    try:
+        records = license_sheet.get_all_records()
+        matched_row = None
+        for idx, row in enumerate(records, start=2):  # 2 = start from row 2
+            if row["username"].strip().lower() == username.strip().lower():
+                matched_row = idx
+                break
 
-    # Update each provided field
-    for key, value in data.items():
-        if key in headers:
-            col_index = headers.index(key) + 1
-            license_sheet.update_cell(row_index, col_index, value)
+        if not matched_row:
+            log_action("UPDATE_FAIL", username, "User not found")
+            return jsonify({"error": "User not found"}), 404
 
-    log_action("UPDATE", username, data)
-    return jsonify({"message": "License updated"}), 200
+        headers = license_sheet.row_values(1)
+        for key, value in data.items():
+            if key in headers:
+                col_index = headers.index(key) + 1
+                license_sheet.update_cell(matched_row, col_index, value)
+
+        log_action("UPDATE", username, data)
+        return jsonify({"message": "License updated"}), 200
+
+    except Exception as e:
+        log_action("UPDATE_ERROR", username, str(e))
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/license', methods=['DELETE'])
@@ -105,16 +147,25 @@ def delete_license():
         return jsonify({"error": "Username is required"}), 400
 
     try:
-        cell = license_sheet.find(username)
-        if not cell:
+        records = license_sheet.get_all_records()
+        matched_row = None
+        for idx, row in enumerate(records, start=2):
+            if row["username"].strip().lower() == username.strip().lower():
+                matched_row = idx
+                break
+
+        if not matched_row:
+            log_action("DELETE_FAIL", username, "User not found")
             return jsonify({"error": "User not found"}), 404
-        license_sheet.delete_rows(cell.row)
+
+        license_sheet.delete_rows(matched_row)
         log_action("DELETE", username, {})
         return jsonify({"message": "License deleted"}), 200
+
     except Exception as e:
+        log_action("DELETE_ERROR", username, str(e))
         return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
     app.run(debug=True)
-    
