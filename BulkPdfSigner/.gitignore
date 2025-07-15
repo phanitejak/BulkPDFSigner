@@ -1,6 +1,7 @@
 # Visual Studio build artifacts
 bin/
 obj/
+*.exe
 
 # User-specific files
 *.user
