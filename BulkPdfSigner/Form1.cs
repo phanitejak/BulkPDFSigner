@@ -93,7 +93,7 @@ public partial class Form1 : Form
             using (HttpClient client = new HttpClient())
             {
                 string apiUrl = $"https://bulk-pdf-signer-license-provider.onrender.com/license?username={user}";
-                client.DefaultRequestHeaders.Add("X-API-KEY", "your-api-key-here");
+                client.DefaultRequestHeaders.Add("X-API-KEY", "api_kpteja_3b8f9e2c14e944f59a1e23bd9c82c7fa");
 
                 HttpResponseMessage response = client.GetAsync(apiUrl).GetAwaiter().GetResult();
                 string result = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
