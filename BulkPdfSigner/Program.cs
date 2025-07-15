@@ -11,6 +11,6 @@ static class Program
         MessageBoxManager.Register();
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new Form1(false));
+        Application.Run(new Form1());
     }
 }
