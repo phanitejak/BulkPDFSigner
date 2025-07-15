@@ -19,19 +19,16 @@ public partial class Form1 : Form
     X509Certificate2Collection? x509Certificate2Collection;
     CultureInfo provider = CultureInfo.InvariantCulture;
 
-    public Form1(bool IsTrial)
+    public Form1()
     {
         InitializeComponent();
+
+        Text = $"Bulk PDF Signer - Version {Application.ProductVersion.Split('+')[0]}";
         Shown += Form1_Shown;
         FormClosed += Form1_FormClosed;
         FormClosing += Form1_FormClosing;
 
         msglabel.Visible = false;
-        Text = "Bulk PDF Signer --- Copyright, " + DateTime.Now.Year;
-    }
-
-    public Form1()
-    {
     }
 
     private void Form1_FormClosing(object? sender, FormClosingEventArgs e)
@@ -188,8 +185,10 @@ public partial class Form1 : Form
     public bool signPdfFile(string sourceDocument, string destinationPath, X509Certificate2 cert)
     {
         bool result = false;
-        X509CertificateParser x509CertificateParser = new X509CertificateParser();
-        Org.BouncyCastle.X509.X509Certificate[] chain = new Org.BouncyCastle.X509.X509Certificate[1] { x509CertificateParser.ReadCertificate(cert.RawData) };
+        X509CertificateParser certParser = new X509CertificateParser();
+        Org.BouncyCastle.X509.X509Certificate[] chain = [certParser.ReadCertificate(cert.RawData)];
+
+        IExternalSignature externalSignature = new X509Certificate2Signature(cert, "SHA256");
 
         PdfDocument pdfDoc = new PdfDocument(new PdfReader(sourceDocument));
         int lastpage = pdfDoc.GetNumberOfPages();
@@ -201,6 +200,7 @@ public partial class Form1 : Form
         try
         {
             PdfSignatureAppearance signatureAppearance = pdfSigner.GetSignatureAppearance();
+
             if (page_opt == "lastpage" && (user_info[3] == "ALL" || user_info[3] == "SACFA"))
             {
                 // Create the signature appearance
@@ -217,8 +217,8 @@ public partial class Form1 : Form
             {
                 pdfSigner.SetFieldName("Signature 1");
             }
+            signatureAppearance.SetReason(null).SetLocation(null);
             signatureAppearance.SetRenderingMode(PdfSignatureAppearance.RenderingMode.NAME_AND_DESCRIPTION);
-            IExternalSignature externalSignature = new X509Certificate2Signature(cert, "SHA256");
             pdfSigner.SignDetached(externalSignature, chain, null, null, null, 0, PdfSigner.CryptoStandard.CMS);
             result = true;
         }
@@ -291,8 +291,8 @@ public partial class Form1 : Form
                 string[] pathFileName = PathFileName;
                 foreach (string text in pathFileName)
                 {
-                    status_msgbox.AppendText("Processing file .... " + System.IO.Path.GetFileName(text));
-                    if (signPdfFile(text, targetloc + "\\" + System.IO.Path.GetFileName(text).ToString(), x509Certificate))
+                    status_msgbox.AppendText("Processing file .... " + Path.GetFileName(text));
+                    if (signPdfFile(text, targetloc + "\\" + Path.GetFileName(text).ToString(), x509Certificate))
                     {
                         pgbar.PerformStep();
                         status_msgbox.AppendText("...... Document Signed.");
