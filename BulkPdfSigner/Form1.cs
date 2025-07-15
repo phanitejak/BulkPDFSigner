@@ -1,10 +1,9 @@
-using System.Data;
 using System.Globalization;
 using System.Security.Cryptography.X509Certificates;
 using Org.BouncyCastle.X509;
 using iText.Kernel.Pdf;
 using iText.Signatures;
-using iText.Kernel.Geom;
+using Newtonsoft.Json.Linq;
 
 namespace BulkPdfSigner;
 
@@ -57,13 +56,11 @@ public partial class Form1 : Form
         if (x509Certificate2Collection.Count <= 0)
         {
             MessageBox.Show("No Certificate selected.");
-            status_msgbox.AppendText(Environment.NewLine);
-            status_msgbox.AppendText("No Certificate Selected.");
-            status_msgbox.AppendText(Environment.NewLine);
+            status_msgbox.AppendText(Environment.NewLine + "No Certificate Selected." + Environment.NewLine);
         }
         else
         {
-            x509Certificate = (X509Certificate2)((X509CertificateCollection)x509Certificate2Collection)[x509Certificate2Collection.Count - 1];
+            x509Certificate = x509Certificate2Collection[0];
             if (!get_userinfo(x509Certificate.GetNameInfo(X509NameType.SimpleName, false)))
             {
                 if (_trial)
@@ -89,79 +86,104 @@ public partial class Form1 : Form
     private bool get_userinfo(string user)
     {
         bool status = false;
-        string pkfile = AppDomain.CurrentDomain.BaseDirectory + @"\apikey_kpteja.json";
-
         status_msgbox.AppendText("Contacting Licensing Server..." + Environment.NewLine);
 
-        GoogleSheetsHelper gsh = new GoogleSheetsHelper(pkfile, "1FKnY8mhgBd8cbHmAORP0BjeiwxSLnMF1zPEnCW2H_a4", "kpteja@api-project-395839217553.iam.gserviceaccount.com");
-        var gsp = new GoogleSheetParameters()
+        try
         {
-            RangeColumnStart = 1,
-            RangeRowStart = 1,
-            RangeColumnEnd = 4,
-            RangeRowEnd = 1000,
-            FirstRowIsHeaders = true,
-            SheetName = "sheet1"
-        };
-        var lic_data = gsh.GetDataTableFromSheet(gsp);
-        bool user_found = false;
-
-        foreach (DataRow row in lic_data.Rows)
-        {
-            if (row["username"].ToString() == user)
+            using (HttpClient client = new HttpClient())
             {
-                user_found = true;
+                string apiUrl = $"https://bulk-pdf-signer-license-provider.onrender.com/license?username={user}";
+                client.DefaultRequestHeaders.Add("X-API-KEY", "your-api-key-here");
 
-                user_info[0] = row["username"].ToString();
-                user_info[1] = row["circle"].ToString();
-                user_info[2] = row["valid_till"].ToString();
-                switch (Convert.ToInt32(row["lic_type"].ToString()))
+                HttpResponseMessage response = client.GetAsync(apiUrl).GetAwaiter().GetResult();
+                string result = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+                if (response.IsSuccessStatusCode)
                 {
-                    case 1:
-                        user_info[3] = "ALL";
-                        break;
-                    case 2:
-                        user_info[3] = "BulkPDF";
-                        break;
-                    case 3:
-                        user_info[3] = "SACFA";
-                        break;
-                    default:
-                        user_info[3] = "Trial";
+                    var json = JObject.Parse(result);
+                    user_info[0] = json["username"]?.ToString() ?? "";
+                    user_info[1] = json["circle"]?.ToString() ?? "";
+                    user_info[2] = json["valid_till"]?.ToString() ?? "";
+                    string lic_type = json["lic_type"]?.ToString()?.Trim().ToUpperInvariant() ?? "";
+                    user_info[3] = lic_type;
+                    if (lic_type == "TRIAL")
+                    {
                         _trial = true;
-                        break;
-                }
-                if (DateTime.Now > DateTime.ParseExact(user_info[2], "dd-MM-yyyy", provider))
-                {
-                    status_msgbox.AppendText("This software is licensed till " + user_info[2] + " Only. Please contact administrator.");
-                    status_msgbox.AppendText(Environment.NewLine);
-                    MessageBox.Show("This software is licensed till " + user_info[2] + " Only. Please contact administrator.");
+                    }
+
+                    string validTillRaw = user_info[2];
+                    DateTime validTillDate;
+
+                    bool isDateValid = DateTime.TryParseExact(validTillRaw, "dd-MM-yyyy", provider, DateTimeStyles.None, out validTillDate);
+
+                    if (!isDateValid)
+                    {
+                        status_msgbox.AppendText($"Invalid license date format: {validTillRaw}. Please contact administrator.\n");
+                        MessageBox.Show($"License date format is invalid: {validTillRaw}. Please contact administrator.");
+                        return false;
+                    }
+
+                    if (DateTime.Now > validTillDate)
+                    {
+                        status_msgbox.AppendText($"This software is licensed till {user_info[2]} only. Please contact administrator." + Environment.NewLine);
+                        MessageBox.Show($"This software is licensed till {user_info[2]} only. Please contact administrator.");
+                    }
+                    else
+                    {
+                        MessageBox.Show($"License Found! Software Activated.\n\nLicensed to Mr. {user_info[0]} ({user_info[1]} Circle)\nValid till: {user_info[2]}", "Licensing Details");
+                        status_msgbox.AppendText($"License Found! Software Activated. Licensed to Mr. {user_info[0]}, valid till {user_info[2]}" + Environment.NewLine);
+                        status = true;
+                        _activated = true;
+                    }
                 }
                 else
                 {
-                    MessageBox.Show("License Found !!! Software is Activated." + Environment.NewLine + Environment.NewLine + "This product is licensed to Mr. " + user_info[0] + " of " + user_info[1] + " Circle & is valid till " + user_info[2], "Licensing Details");
-                    status_msgbox.AppendText("License Found !!! Software is Activated." + Environment.NewLine + Environment.NewLine + "This product is licensed to Mr. " + user_info[0] + " of " + user_info[1] + " Circle & is valid till " + user_info[2]);
-                    status = true;
-                    _activated = true;
+                    // Try creating trial license
+                    status_msgbox.AppendText($"No license found for {user}. Trying trial license..." + Environment.NewLine);
+                    var trialData = new
+                    {
+                        username = user,
+                        circle = "Trial",
+                        valid_till = DateTime.Now.AddDays(2).ToString("dd-MM-yyyy"),
+                        lic_type = "Trial"
+                    };
+
+                    var jsonData = new StringContent(
+                        Newtonsoft.Json.JsonConvert.SerializeObject(trialData),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    HttpResponseMessage postResponse = client.PostAsync("https://bulk-pdf-signer-license-provider.onrender.com/license", jsonData).GetAwaiter().GetResult();
+
+                    if (postResponse.IsSuccessStatusCode)
+                    {
+                        status_msgbox.AppendText("Trial license created successfully." + Environment.NewLine);
+                        MessageBox.Show("Trial license created. You can now use the software for 2 days.");
+                        _trial = true;
+                        _activated = true;
+                        user_info[0] = user;
+                        user_info[1] = "Trial";
+                        user_info[2] = trialData.valid_till;
+                        user_info[3] = "ALL";
+                    }
+                    else
+                    {
+                        string errorDetail = postResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        MessageBox.Show($"Unable to create trial license.\n\n{errorDetail}");
+                        status_msgbox.AppendText("Trial license creation failed." + Environment.NewLine);
+                    }
                 }
             }
         }
-
-        if (!user_found)
+        catch (Exception ex)
         {
-            status_msgbox.AppendText("No License available for " + user + ". Please contact administrator.");
-            status_msgbox.AppendText(Environment.NewLine);
-            MessageBox.Show("No License available for " + user + ". Please contact administrator.");
-            user_info[0] = user;
-            user_info[1] = "Trail";
-            user_info[2] = "";
-            user_info[3] = "ALL";
-            _trial = true;
-            _activated = true;
+            status_msgbox.AppendText("Error contacting license server: " + ex.Message + Environment.NewLine);
+            MessageBox.Show("Error contacting license server: " + ex.Message);
         }
 
         return status;
     }
+
 
     public bool signPdfFile(string sourceDocument, string destinationPath, X509Certificate2 cert)
     {
@@ -298,9 +320,9 @@ public partial class Form1 : Form
         if (openFileDialog1.ShowDialog() == DialogResult.OK)
         {
             PathFileName = openFileDialog1.FileNames;
-            string directoryName = System.IO.Path.GetDirectoryName(PathFileName[0]);
+            string directoryName = Path.GetDirectoryName(PathFileName[0]);
             textBox1.Text = directoryName;
-            status_msgbox.AppendText("Source files selected .... " + PathFileName.Count() + " Files...");
+            status_msgbox.AppendText("Source files selected .... " + PathFileName.Length + " Files...");
             status_msgbox.AppendText(Environment.NewLine);
         }
         else
