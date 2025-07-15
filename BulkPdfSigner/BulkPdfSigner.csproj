@@ -16,10 +16,4 @@
     <PackageReference Include="itext7.bouncy-castle-adapter" Version="8.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="apikey_kpteja.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>
