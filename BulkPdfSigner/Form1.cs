@@ -13,7 +13,7 @@ public partial class Form1 : Form
     string[] PathFileName = { };
     string targetloc = "";
     private string page_opt = "";
-    string[] user_info = { "", "", "", "" };
+    string[] user_info = { "", "", "", "", "" };
     private bool _trial = false;
     private bool _activated = false;
     X509Certificate2Collection? x509Certificate2Collection;
@@ -58,7 +58,8 @@ public partial class Form1 : Form
         else
         {
             x509Certificate = x509Certificate2Collection[0];
-            if (!get_userinfo(x509Certificate.GetNameInfo(X509NameType.SimpleName, false)))
+            var (username, usb_serial) = GetCNAndSerialNumber(x509Certificate);
+            if (!get_userinfo(username, usb_serial))
             {
                 if (_trial)
                 {
@@ -80,7 +81,29 @@ public partial class Form1 : Form
         }
     }
 
-    private bool get_userinfo(string user)
+    public static (string CN, string SerialNumber) GetCNAndSerialNumber(X509Certificate2 cert)
+    {
+        string cn = cert.GetNameInfo(X509NameType.SimpleName, false);
+        string serialFromSubject = "";
+
+        string subject = cert.Subject;
+        var parts = subject.Split(',');
+
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            if (trimmed.StartsWith("SERIALNUMBER=", StringComparison.OrdinalIgnoreCase))
+            {
+                serialFromSubject = trimmed.Substring("SERIALNUMBER=".Length);
+                break;
+            }
+        }
+
+        return (cn, serialFromSubject);
+    }
+
+
+    private bool get_userinfo(string user, string serialnum)
     {
         bool status = false;
         status_msgbox.AppendText("Contacting Licensing Server..." + Environment.NewLine);
@@ -89,7 +112,7 @@ public partial class Form1 : Form
         {
             using (HttpClient client = new HttpClient())
             {
-                string apiUrl = $"https://bulk-pdf-signer-license-provider.onrender.com/license?username={user}";
+                string apiUrl = $"https://bulk-pdf-signer-license-provider.onrender.com/license?serialnum={serialnum}";
                 client.DefaultRequestHeaders.Add("X-API-KEY", "api_kpteja_3b8f9e2c14e944f59a1e23bd9c82c7fa");
 
                 HttpResponseMessage response = client.GetAsync(apiUrl).GetAwaiter().GetResult();
@@ -99,10 +122,11 @@ public partial class Form1 : Form
                 {
                     var json = JObject.Parse(result);
                     user_info[0] = json["username"]?.ToString() ?? "";
-                    user_info[1] = json["circle"]?.ToString() ?? "";
-                    user_info[2] = json["valid_till"]?.ToString() ?? "";
+                    user_info[1] = json["usb_serial"]?.ToString() ?? serialnum;
+                    user_info[2] = json["circle"]?.ToString() ?? "";
+                    user_info[3] = json["valid_till"]?.ToString() ?? "";
                     string lic_type = json["lic_type"]?.ToString()?.Trim().ToUpperInvariant() ?? "";
-                    user_info[3] = lic_type;
+                    user_info[4] = lic_type;
                     if (lic_type == "TRIAL")
                     {
                         _trial = true;
@@ -140,6 +164,7 @@ public partial class Form1 : Form
                     var trialData = new
                     {
                         username = user,
+                        usb_serial = serialnum,
                         circle = "Trial",
                         valid_till = DateTime.Now.AddDays(2).ToString("dd-MM-yyyy"),
                         lic_type = "Trial"
@@ -159,9 +184,10 @@ public partial class Form1 : Form
                         _trial = true;
                         _activated = true;
                         user_info[0] = user;
-                        user_info[1] = "Trial";
-                        user_info[2] = trialData.valid_till;
-                        user_info[3] = "ALL";
+                        user_info[1] = serialnum;
+                        user_info[2] = "Trial";
+                        user_info[3] = trialData.valid_till;
+                        user_info[4] = "ALL";
                     }
                     else
                     {
@@ -217,8 +243,10 @@ public partial class Form1 : Form
             {
                 pdfSigner.SetFieldName("Signature 1");
             }
-            signatureAppearance.SetReason(null).SetLocation(null);
+
             signatureAppearance.SetRenderingMode(PdfSignatureAppearance.RenderingMode.NAME_AND_DESCRIPTION);
+            signatureAppearance.SetReason("");
+            signatureAppearance.SetLocation("");
             pdfSigner.SignDetached(externalSignature, chain, null, null, null, 0, PdfSigner.CryptoStandard.CMS);
             result = true;
         }

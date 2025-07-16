@@ -46,23 +46,23 @@ def require_api_key():
 
 @app.route('/license', methods=['GET'])
 def get_license():
-    username = request.args.get('username')
-    if not username:
-        return jsonify({"error": "Username not provided"}), 400
+    serialnum = request.args.get('serialnum')
+    if not serialnum:
+        return jsonify({"error": "USB Serial not provided"}), 400
 
     records = license_sheet.get_all_records()
     for row in records:
-        if row["username"].strip().lower() == username.strip().lower():
+        if row["usb_serial"].strip().lower() == serialnum.strip().lower():
             return jsonify(row), 200
 
-    log_action("GET_FAIL", username, "User not found")
+    log_action("GET_FAIL", serialnum, "User with given serialnum not found")
     return jsonify({"error": "User not found"}), 404
 
 
 @app.route('/license', methods=['POST'])
 def create_license():
     data = request.get_json()
-    required_fields = ['username', 'circle', 'lic_type']
+    required_fields = ['username', 'usb_serial', 'circle', 'lic_type']
 
     for field in required_fields:
         if field not in data:
@@ -90,9 +90,10 @@ def create_license():
             return jsonify({"error": "Username already exists"}), 409
 
     license_sheet.append_row([
-        data['username'], data['circle'], valid_till_str, lic_type
+        data['username'], data['usb_serial'], data['circle'], valid_till_str, lic_type
     ])
     log_action("CREATE", data['username'], {
+        "usb_serial": data['usb_serial'],
         "circle": data['circle'],
         "valid_till": valid_till_str,
         "lic_type": lic_type
@@ -102,11 +103,11 @@ def create_license():
 
 @app.route('/license', methods=['PUT'])
 def update_license():
-    username = request.args.get('username')
+    serialnum = request.args.get('serialnum')
     data = request.get_json()
 
-    if not username:
-        return jsonify({"error": "Username is required"}), 400
+    if not serialnum:
+        return jsonify({"error": "USB serialnum is required"}), 400
 
     if 'valid_till' in data:
         try:
@@ -118,12 +119,12 @@ def update_license():
         records = license_sheet.get_all_records()
         matched_row = None
         for idx, row in enumerate(records, start=2):  # 2 = start from row 2
-            if row["username"].strip().lower() == username.strip().lower():
+            if row["usb_serial"].strip().lower() == serialnum.strip().lower():
                 matched_row = idx
                 break
 
         if not matched_row:
-            log_action("UPDATE_FAIL", username, "User not found")
+            log_action("UPDATE_FAIL", serialnum, "User with given serial not found")
             return jsonify({"error": "User not found"}), 404
 
         headers = license_sheet.row_values(1)
@@ -132,38 +133,38 @@ def update_license():
                 col_index = headers.index(key) + 1
                 license_sheet.update_cell(matched_row, col_index, value)
 
-        log_action("UPDATE", username, data)
+        log_action("UPDATE", serialnum, data)
         return jsonify({"message": "License updated"}), 200
 
     except Exception as e:
-        log_action("UPDATE_ERROR", username, str(e))
+        log_action("UPDATE_ERROR", serialnum, str(e))
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/license', methods=['DELETE'])
 def delete_license():
-    username = request.args.get('username')
-    if not username:
-        return jsonify({"error": "Username is required"}), 400
+    serialnum = request.args.get('serialnum')
+    if not serialnum:
+        return jsonify({"error": "USB serialnum is required"}), 400
 
     try:
         records = license_sheet.get_all_records()
         matched_row = None
         for idx, row in enumerate(records, start=2):
-            if row["username"].strip().lower() == username.strip().lower():
+            if row["usb_serial"].strip().lower() == serialnum.strip().lower():
                 matched_row = idx
                 break
 
         if not matched_row:
-            log_action("DELETE_FAIL", username, "User not found")
+            log_action("DELETE_FAIL", serialnum, "User not found")
             return jsonify({"error": "User not found"}), 404
 
         license_sheet.delete_rows(matched_row)
-        log_action("DELETE", username, {})
+        log_action("DELETE", serialnum, {})
         return jsonify({"message": "License deleted"}), 200
 
     except Exception as e:
-        log_action("DELETE_ERROR", username, str(e))
+        log_action("DELETE_ERROR", serialnum, str(e))
         return jsonify({"error": str(e)}), 500
 
 
