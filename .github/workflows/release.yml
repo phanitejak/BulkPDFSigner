@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Compute version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v',''
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Building version: $version"
+
+      - name: Restore
+        run: dotnet restore App_v8.sln
+
+      - name: Build
+        env:
+          BULK_PDF_SIGNER_API_KEY: ${{ secrets.LICENSE_API_KEY }}
+        run: dotnet build App_v8.sln -c Release --no-restore -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: Test
+        run: dotnet test App_v8.sln -c Release --no-build --logger "console;verbosity=normal"
+
+      - name: Publish single-file self-contained exe
+        env:
+          BULK_PDF_SIGNER_API_KEY: ${{ secrets.LICENSE_API_KEY }}
+        run: >
+          dotnet publish BulkPdfSigner/BulkPdfSigner.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: Verify API key was embedded
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrEmpty("${{ secrets.LICENSE_API_KEY }}")) {
+            Write-Error "LICENSE_API_KEY secret is not set in repository settings."
+            exit 1
+          }
+          Write-Host "LICENSE_API_KEY is set (length: $('${{ secrets.LICENSE_API_KEY }}'.Length))"
+
+      - name: Stage artifact with versioned name
+        shell: pwsh
+        run: |
+          $src = "BulkPdfSigner/bin/Release/net8.0-windows/win-x64/publish/BulkPdfSigner.exe"
+          $dst = "BulkPdfSigner-${{ steps.ver.outputs.version }}.exe"
+          Copy-Item $src $dst
+          Get-FileHash $dst -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $dst" } | Out-File "$dst.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: |
+            BulkPdfSigner-${{ steps.ver.outputs.version }}.exe
+            BulkPdfSigner-${{ steps.ver.outputs.version }}.exe.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false

@@ -44,7 +44,6 @@ partial class Form1
         this.groupBox2 = new System.Windows.Forms.GroupBox();
         this.status_msgbox = new System.Windows.Forms.TextBox();
         this.pgbar = new System.Windows.Forms.ProgressBar();
-        this.msglabel = new System.Windows.Forms.Label();
         this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
         this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
         this.toolStrip1.SuspendLayout();
@@ -199,16 +198,7 @@ partial class Form1
         this.pgbar.Name = "pgbar";
         this.pgbar.Size = new System.Drawing.Size(613, 23);
         this.pgbar.TabIndex = 3;
-        // 
-        // msglabel
-        // 
-        this.msglabel.AutoSize = true;
-        this.msglabel.Location = new System.Drawing.Point(293, 379);
-        this.msglabel.Name = "msglabel";
-        this.msglabel.Size = new System.Drawing.Size(13, 13);
-        this.msglabel.TabIndex = 4;
-        this.msglabel.Text = "d";
-        // 
+        //
         // openFileDialog1
         // 
         this.openFileDialog1.FileName = "openFileDialog1";
@@ -218,7 +208,6 @@ partial class Form1
         this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
         this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
         this.ClientSize = new System.Drawing.Size(638, 440);
-        this.Controls.Add(this.msglabel);
         this.Controls.Add(this.pgbar);
         this.Controls.Add(this.groupBox2);
         this.Controls.Add(this.groupBox1);
@@ -227,7 +216,6 @@ partial class Form1
         this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
         this.MaximizeBox = false;
         this.Name = "Form1";
-        this.Load += new System.EventHandler(this.Form1_Load);
         this.toolStrip1.ResumeLayout(false);
         this.toolStrip1.PerformLayout();
         this.groupBox1.ResumeLayout(false);
@@ -253,7 +241,6 @@ partial class Form1
     private System.Windows.Forms.GroupBox groupBox2;
     private System.Windows.Forms.TextBox status_msgbox;
     private System.Windows.Forms.ProgressBar pgbar;
-    private System.Windows.Forms.Label msglabel;
     private System.Windows.Forms.OpenFileDialog openFileDialog1;
     private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog1;
     private System.Windows.Forms.Button beginsigning;
