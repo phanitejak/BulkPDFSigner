@@ -1,0 +1,10 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <PropertyGroup>
+    <OutputName>BulkPdfSigner-$(Version)</OutputName>
+    <OutputType>Package</OutputType>
+    <SuppressIces>ICE61</SuppressIces>
+    <DefineConstants>Version=$(Version)</DefineConstants>
+  </PropertyGroup>
+
+</Project>

@@ -62,13 +62,29 @@ jobs:
           }
           Write-Host "LICENSE_API_KEY is set (length: $('${{ secrets.LICENSE_API_KEY }}'.Length))"
 
-      - name: Stage artifact with versioned name
+      - name: Build MSI installer
+        run: dotnet build installer/Installer.wixproj -c Release -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: Stage release artifacts
         shell: pwsh
         run: |
-          $src = "BulkPdfSigner/bin/Release/net8.0-windows/win-x64/publish/BulkPdfSigner.exe"
-          $dst = "BulkPdfSigner-${{ steps.ver.outputs.version }}.exe"
-          Copy-Item $src $dst
-          Get-FileHash $dst -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $dst" } | Out-File "$dst.sha256"
+          $version = "${{ steps.ver.outputs.version }}"
+
+          $exeSrc = "BulkPdfSigner/bin/Release/net8.0-windows/win-x64/publish/BulkPdfSigner.exe"
+          $exeDst = "BulkPdfSigner-$version.exe"
+          Copy-Item $exeSrc $exeDst
+          Get-FileHash $exeDst -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $exeDst" } |
+            Out-File "$exeDst.sha256"
+
+          $msiSrc = "installer/bin/Release/BulkPdfSigner-$version.msi"
+          $msiDst = "BulkPdfSigner-$version.msi"
+          Copy-Item $msiSrc $msiDst
+          Get-FileHash $msiDst -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $msiDst" } |
+            Out-File "$msiDst.sha256"
+
+          Get-ChildItem BulkPdfSigner-$version.* | Select-Object Name, Length
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -76,6 +92,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           files: |
+            BulkPdfSigner-${{ steps.ver.outputs.version }}.msi
+            BulkPdfSigner-${{ steps.ver.outputs.version }}.msi.sha256
             BulkPdfSigner-${{ steps.ver.outputs.version }}.exe
             BulkPdfSigner-${{ steps.ver.outputs.version }}.exe.sha256
           generate_release_notes: true
