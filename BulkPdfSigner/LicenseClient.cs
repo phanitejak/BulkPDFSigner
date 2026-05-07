@@ -7,7 +7,7 @@ namespace BulkPdfSigner;
 
 public sealed class LicenseClient : IDisposable
 {
-    private const string ApiBase = "https://bulk-pdf-signer-license-provider.onrender.com";
+    private const string ApiBase = "https://bulk-pdf-signer-license-provider-496807224907.asia-south1.run.app";
     private static readonly string ApiKey = ResolveApiKey();
 
     private static string ResolveApiKey()
