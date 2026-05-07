@@ -1,20 +1,36 @@
 from flask import Flask, request, jsonify
 import gspread
 import google.auth
+from google.oauth2 import service_account
 from datetime import datetime, timedelta
 import os
+import json
 
 app = Flask(__name__)
 
-# Authenticate via Application Default Credentials.
-# On Cloud Run this comes from the attached service account; no JSON key on disk.
-# Locally it falls back to `gcloud auth application-default login`.
 SCOPES = [
     'https://spreadsheets.google.com/feeds',
     'https://www.googleapis.com/auth/drive',
 ]
-creds, _ = google.auth.default(scopes=SCOPES)
-client = gspread.authorize(creds)
+
+
+def _get_credentials():
+    """Resolve Sheets credentials.
+
+    SERVICE_JSON env var (Render today) takes precedence; otherwise fall back
+    to Application Default Credentials (Cloud Run, GCE, or
+    `gcloud auth application-default login` locally). Either path works
+    without code changes.
+    """
+    raw = os.environ.get("SERVICE_JSON")
+    if raw:
+        info = json.loads(raw)
+        return service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+    creds, _ = google.auth.default(scopes=SCOPES)
+    return creds
+
+
+client = gspread.authorize(_get_credentials())
 
 LICENSE_SHEET_ID = "1FKnY8mhgBd8cbHmAORP0BjeiwxSLnMF1zPEnCW2H_a4"
 LICENSE_SHEET = "Licenses"
