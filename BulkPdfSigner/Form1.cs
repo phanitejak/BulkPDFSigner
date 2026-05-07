@@ -58,6 +58,14 @@ public partial class Form1 : Form
 
     private async Task OnShownAsync()
     {
+        // Check for updates FIRST — before cert selection or license activation.
+        // If the licensing backend is broken or the cert flow is blocked, users
+        // still have a path to a fixed version. If the user accepts the update,
+        // ApplyUpdateAsync calls Application.Exit and the rest of this method
+        // never runs.
+        AppLogger.Info("Checking for updates...");
+        await CheckForUpdateAsync(isManual: false);
+
         AppLogger.Info("Activating Software...");
 
         var cert = SelectCertificate();
@@ -84,7 +92,6 @@ public partial class Form1 : Form
         {
             AppLogger.Info($"License loaded from cache (valid till {cached.ValidTill}, type {cached.LicType}).");
             _license.StartPolling();
-            _ = CheckForUpdateAsync();
             return;
         }
 
@@ -117,17 +124,28 @@ public partial class Form1 : Form
 
         AnnounceLicense(info);
         _license.StartPolling();
-        _ = CheckForUpdateAsync();
     }
 
     // ---------- Auto-update ----------
 
-    private async Task CheckForUpdateAsync()
+    private async Task CheckForUpdateAsync(bool isManual = false)
     {
         try
         {
             var info = await _update.CheckForUpdateAsync();
-            if (info is null) return;
+            if (info is null)
+            {
+                if (isManual)
+                {
+                    var version = Application.ProductVersion.Split('+')[0];
+                    MessageBox.Show(
+                        $"You're on the latest version ({version}).",
+                        "No update available",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+                return;
+            }
 
             var notes = string.IsNullOrWhiteSpace(info.ReleaseNotes)
                 ? ""
@@ -159,13 +177,110 @@ public partial class Form1 : Form
         catch (Exception ex)
         {
             AppLogger.Error($"Update failed: {ex.Message}");
+            if (isManual)
+            {
+                MessageBox.Show(
+                    $"Update check failed: {ex.Message}\n\n" +
+                    "You can continue using the current version. Download the latest manually from\n" +
+                    "https://github.com/phanitejak/BulkPDFSigner/releases/latest",
+                    "Update",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+    }
+
+    private async void updateToolStrip_Click(object sender, EventArgs e)
+    {
+        updateToolStrip.Enabled = false;
+        UseWaitCursor = true;
+        try
+        {
+            await CheckForUpdateAsync(isManual: true);
+        }
+        finally
+        {
+            updateToolStrip.Enabled = true;
+            UseWaitCursor = false;
+        }
+    }
+
+    private void diagnosticsToolStrip_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var zipPath = Path.Combine(desktop, $"BulkPdfSigner-diagnostics-{stamp}.zip");
+
+            using (var fs = new FileStream(zipPath, FileMode.Create))
+            using (var zip = new System.IO.Compression.ZipArchive(fs, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                var summary =
+                    $"Version: {Application.ProductVersion.Split('+')[0]}\n" +
+                    $"Generated: {DateTime.Now:yyyy-MM-ddTHH:mm:ssK}\n" +
+                    $"OS: {Environment.OSVersion.VersionString}\n" +
+                    $"Machine: {Environment.MachineName}\n" +
+                    $"User: {Environment.UserName}\n" +
+                    $"License (in-memory): {(_license.Current is { } li ? $"{li.LicType}, {li.Username} ({li.Circle}), valid till {li.ValidTill}" : "(not loaded)")}\n" +
+                    $"Cert serial: {_certSerial}\n" +
+                    $"Cert CN: {_certUserName}\n";
+                using (var sw = new StreamWriter(zip.CreateEntry("summary.txt").Open()))
+                {
+                    sw.Write(summary);
+                }
+
+                TryAddFileEntry(zip, AppLogger.LogPath, "log.txt");
+
+                var cachePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BulkPdfSigner",
+                    "license.json");
+                TryAddFileEntry(zip, cachePath, "license-cache.json");
+            }
+
             MessageBox.Show(
-                $"Update failed: {ex.Message}\n\n" +
-                "You can continue using the current version. Download the latest manually from " +
-                "https://github.com/phanitejak/BulkPDFSigner/releases/latest",
-                "Update",
+                $"Diagnostics saved to your Desktop:\n\n{zipPath}\n\n" +
+                "Email this file to:\nkondapalliphaniteja@gmail.com",
+                "Diagnostics Saved",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{zipPath}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch { /* opening Explorer is best-effort */ }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Diagnostics export failed: {ex.Message}");
+            MessageBox.Show(
+                $"Could not save diagnostics: {ex.Message}",
+                "Diagnostics",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
+        }
+    }
+
+    private static void TryAddFileEntry(System.IO.Compression.ZipArchive zip, string sourcePath, string entryName)
+    {
+        try
+        {
+            if (!File.Exists(sourcePath)) return;
+            using var src = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var dst = zip.CreateEntry(entryName).Open();
+            src.CopyTo(dst);
+        }
+        catch (Exception ex)
+        {
+            using var sw = new StreamWriter(zip.CreateEntry($"{entryName}.error.txt").Open());
+            sw.Write($"Could not include {entryName}: {ex.Message}");
         }
     }
 
