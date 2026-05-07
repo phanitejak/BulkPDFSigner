@@ -1,0 +1,88 @@
+name: Deploy Licensing API to Cloud Run
+
+on:
+  # Manual-only for now — we're still on Render.
+  # When ready to migrate to Cloud Run, switch to a push trigger and grant
+  # roles/artifactregistry.admin to the deployer SA for the first deploy.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required to receive the GitHub OIDC token used by WIF
+
+env:
+  PROJECT_ID: mystical-axiom-466007-i4
+  REGION: asia-south1
+  SERVICE_NAME: bulk-pdf-signer-license-provider
+  RUNTIME_SA: bulk-pdf-signer-api@mystical-axiom-466007-i4.iam.gserviceaccount.com
+  DEPLOYER_SA: bulk-pdf-signer-api@mystical-axiom-466007-i4.iam.gserviceaccount.com
+  WIF_PROVIDER: projects/496807224907/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud via WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify auth + project
+        run: |
+          gcloud config set project ${{ env.PROJECT_ID }}
+          gcloud auth list
+          gcloud config list
+
+      - name: Verify LICENSE_API_KEY secret is set
+        run: |
+          if [ -z "${{ secrets.LICENSE_API_KEY }}" ]; then
+            echo "::error::LICENSE_API_KEY secret is not set in repository settings."
+            exit 1
+          fi
+          echo "LICENSE_API_KEY is set."
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --source license_api/ \
+            --region ${{ env.REGION }} \
+            --service-account ${{ env.RUNTIME_SA }} \
+            --set-env-vars "API_KEY=${{ secrets.LICENSE_API_KEY }}" \
+            --allow-unauthenticated \
+            --memory 256Mi \
+            --cpu 1 \
+            --max-instances 5 \
+            --concurrency 40 \
+            --quiet
+
+      - name: Print service URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format='value(status.url)')
+          echo "Service URL: $URL"
+          echo "service_url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Smoke test
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format='value(status.url)')
+          curl -fsS "$URL/" | grep -q "License API is running"
+          echo "Liveness OK"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "X-API-KEY: ${{ secrets.LICENSE_API_KEY }}" \
+            "$URL/license?serialnum=__smoketest__")
+          if [ "$STATUS" != "404" ]; then
+            echo "::error::Expected 404 from /license, got $STATUS"
+            exit 1
+          fi
+          echo "Auth + Sheets reach OK"

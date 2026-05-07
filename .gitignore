@@ -442,3 +442,19 @@ BulkPdfSigner/*.bak
 
 # Windows-specific
 BulkPdfSigner/Thumbs.db
+# Credentials — never commit
+*service_account*.json
+*credentials*.json
+*api*key*.json
+*-iam-*.json
+mystical-axiom-*.json
+ev-silai-*.json
+api-project-*.json
+gs_account.json
+licenser.json
+apikey_*.json
+*.p12
+*.pfx
+.env
+.env.*
+secrets/
