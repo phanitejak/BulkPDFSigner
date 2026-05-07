@@ -5,17 +5,14 @@ using BulkPdfSigner;
 
 namespace BulkPdfSigner_Tests
 {
-    public class Form1Test
+    public class PdfSigningServiceTest
     {
         [Fact]
-        public void SignPdfFile_ValidPdfAndCert_ReturnsTrue()
+        public void Sign_ValidPdfAndCert_ProducesSignedFile()
         {
-            // Arrange
-            var form = new Form1();
             string tempSource = Path.GetTempFileName();
             string tempDest = Path.GetTempFileName();
 
-            // Create a dummy PDF file
             using (var writer = new PdfWriter(tempSource))
             {
                 var pdf = new PdfDocument(writer);
@@ -23,43 +20,38 @@ namespace BulkPdfSigner_Tests
                 pdf.Close();
             }
 
-            // Create a self-signed certificate for testing
-            var cert = CreateSelfSignedCertificate();
+            var cert = CreateSelfSignedRsaCertificate();
 
-            // Act
-            bool result = form.signPdfFile(tempSource, tempDest, cert);
+            PdfSigningService.Sign(tempSource, tempDest, cert, lastPage: false);
 
-            // Assert
-            Xunit.Assert.True(result);
-            Xunit.Assert.True(File.Exists(tempDest));
+            Assert.True(File.Exists(tempDest));
+            Assert.True(new FileInfo(tempDest).Length > 0);
 
-            // Cleanup
             File.Delete(tempSource);
             File.Delete(tempDest);
         }
 
         [Fact]
-        public void SignPdfFile_InvalidSource_ThrowsExceptionAndReturnsFalse()
+        public void Sign_InvalidSource_Throws()
         {
-            // Arrange
-            var form = new Form1();
             string invalidSource = "nonexistent.pdf";
             string tempDest = Path.GetTempFileName();
-            var cert = CreateSelfSignedCertificate();
+            var cert = CreateSelfSignedRsaCertificate();
 
-            // Act
-            bool result = form.signPdfFile(invalidSource, tempDest, cert);
+            Assert.ThrowsAny<Exception>(() =>
+                PdfSigningService.Sign(invalidSource, tempDest, cert, lastPage: false));
 
-            // Assert
-            Assert.False(result);
-            File.Delete(tempDest);
+            if (File.Exists(tempDest)) File.Delete(tempDest);
         }
 
-        private X509Certificate2 CreateSelfSignedCertificate()
+        private static X509Certificate2 CreateSelfSignedRsaCertificate()
         {
-            // For test purposes only: create a dummy self-signed certificate
-            var ecdsa = System.Security.Cryptography.ECDsa.Create();
-            var req = new CertificateRequest("cn=Test", ecdsa, System.Security.Cryptography.HashAlgorithmName.SHA256);
+            using var rsa = System.Security.Cryptography.RSA.Create(2048);
+            var req = new CertificateRequest(
+                "cn=Test",
+                rsa,
+                System.Security.Cryptography.HashAlgorithmName.SHA256,
+                System.Security.Cryptography.RSASignaturePadding.Pkcs1);
             return req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(1));
         }
     }

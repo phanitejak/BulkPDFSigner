@@ -6,16 +6,11 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyVersion>2025.07.15</AssemblyVersion>
-    <FileVersion>2025.07.15</FileVersion>
-    <Version>2025.07.15</Version>
+    <Version>0.0.0-dev</Version>
     <ApplicationIcon>logo_v.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Apis" Version="1.70.0" />
-    <PackageReference Include="Google.Apis.Auth" Version="1.70.0" />
-    <PackageReference Include="Google.Apis.Sheets.v4" Version="1.70.0.3819" />
     <PackageReference Include="itext7" Version="7.2.5" />
     <PackageReference Include="itext7.bouncy-castle-adapter" Version="8.0.0" />
   </ItemGroup>
@@ -27,6 +22,16 @@
     <Content Include="logo_v.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <ApiKey Condition="'$(ApiKey)' == ''">$([System.Environment]::GetEnvironmentVariable('BULK_PDF_SIGNER_API_KEY'))</ApiKey>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(ApiKey)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ApiKey</_Parameter1>
+      <_Parameter2>$(ApiKey)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>
