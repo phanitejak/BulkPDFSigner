@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package
+      Name="Bulk PDF Signer"
+      Manufacturer="Phaniteja K"
+      Version="$(var.Version)"
+      UpgradeCode="4CAECA9A-8C1C-4FDE-9635-8458F710D846"
+      Scope="perUser"
+      Compressed="yes"
+      InstallerVersion="500">
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <MajorUpgrade
+        DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <Icon Id="AppIcon.ico" SourceFile="..\BulkPdfSigner\logo_v.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/phanitejak/BulkPDFSigner" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/phanitejak/BulkPDFSigner" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="BulkPdfSigner" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Bulk PDF Signer" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="Main" Title="Bulk PDF Signer" Level="1">
+
+      <Component Id="MainExecutable"
+                 Directory="INSTALLFOLDER"
+                 Guid="A45BA401-389B-493A-AA5C-6045B1122B89">
+        <File Id="BulkPdfSignerExe"
+              Source="..\BulkPdfSigner\bin\Release\net8.0-windows\win-x64\publish\BulkPdfSigner.exe"
+              KeyPath="no" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\Phaniteja K\BulkPdfSigner"
+                       Name="MainExeInstalled"
+                       Type="integer" Value="1"
+                       KeyPath="yes" />
+      </Component>
+
+      <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="*">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="Bulk PDF Signer"
+                  Target="[#BulkPdfSignerExe]"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon.ico" />
+        <RemoveFolder Id="RemoveStartMenuFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\Phaniteja K\BulkPdfSigner"
+                       Name="StartMenuInstalled"
+                       Type="integer" Value="1"
+                       KeyPath="yes" />
+      </Component>
+
+      <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="*">
+        <Shortcut Id="DesktopShortcut"
+                  Name="Bulk PDF Signer"
+                  Target="[#BulkPdfSignerExe]"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon.ico" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\Phaniteja K\BulkPdfSigner"
+                       Name="DesktopInstalled"
+                       Type="integer" Value="1"
+                       KeyPath="yes" />
+      </Component>
+
+    </Feature>
+
+  </Package>
+
+</Wix>
