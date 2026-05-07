@@ -1,9 +1,11 @@
 name: Deploy Licensing API to Cloud Run
 
 on:
-  # Manual-only for now — we're still on Render.
-  # When ready to migrate to Cloud Run, switch to a push trigger and grant
-  # roles/artifactregistry.admin to the deployer SA for the first deploy.
+  push:
+    branches: [main]
+    paths:
+      - 'license_api/**'
+      - '.github/workflows/deploy-license-api.yml'
   workflow_dispatch:
 
 permissions:
