@@ -1,19 +1,19 @@
 from flask import Flask, request, jsonify
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import google.auth
 from datetime import datetime, timedelta
 import os
-import json
 
 app = Flask(__name__)
 
-# Use credentials from environment variable
-creds_json = os.environ.get("SERVICE_JSON")
-creds_dict = json.loads(creds_json)
-
-# Google Sheets setup
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+# Authenticate via Application Default Credentials.
+# On Cloud Run this comes from the attached service account; no JSON key on disk.
+# Locally it falls back to `gcloud auth application-default login`.
+SCOPES = [
+    'https://spreadsheets.google.com/feeds',
+    'https://www.googleapis.com/auth/drive',
+]
+creds, _ = google.auth.default(scopes=SCOPES)
 client = gspread.authorize(creds)
 
 LICENSE_SHEET_ID = "1FKnY8mhgBd8cbHmAORP0BjeiwxSLnMF1zPEnCW2H_a4"
