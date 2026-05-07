@@ -30,7 +30,9 @@
 
     <Feature Id="Main" Title="Bulk PDF Signer" Level="1">
 
-      <Component Id="MainExecutable" Directory="INSTALLFOLDER" Guid="*">
+      <Component Id="MainExecutable"
+                 Directory="INSTALLFOLDER"
+                 Guid="A45BA401-389B-493A-AA5C-6045B1122B89">
         <File Id="BulkPdfSignerExe"
               Source="..\BulkPdfSigner\bin\Release\net8.0-windows\win-x64\publish\BulkPdfSigner.exe"
               KeyPath="no" />
