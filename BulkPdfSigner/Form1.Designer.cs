@@ -31,6 +31,8 @@ partial class Form1
         System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
         this.toolStrip1 = new System.Windows.Forms.ToolStrip();
         this.aboutToolStrip = new System.Windows.Forms.ToolStripButton();
+        this.updateToolStrip = new System.Windows.Forms.ToolStripButton();
+        this.diagnosticsToolStrip = new System.Windows.Forms.ToolStripButton();
         this.groupBox1 = new System.Windows.Forms.GroupBox();
         this.label3 = new System.Windows.Forms.Label();
         this.sigLoc_listbox = new System.Windows.Forms.ComboBox();
@@ -54,7 +56,9 @@ partial class Form1
         // toolStrip1
         // 
         this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.aboutToolStrip});
+            this.aboutToolStrip,
+            this.updateToolStrip,
+            this.diagnosticsToolStrip});
         this.toolStrip1.Location = new System.Drawing.Point(0, 0);
         this.toolStrip1.Name = "toolStrip1";
         this.toolStrip1.Size = new System.Drawing.Size(638, 25);
@@ -70,6 +74,22 @@ partial class Form1
         this.aboutToolStrip.Size = new System.Drawing.Size(44, 22);
         this.aboutToolStrip.Text = "About";
         this.aboutToolStrip.Click += new System.EventHandler(this.aboutToolStrip_Click);
+        //
+        // updateToolStrip
+        //
+        this.updateToolStrip.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+        this.updateToolStrip.Name = "updateToolStrip";
+        this.updateToolStrip.Size = new System.Drawing.Size(120, 22);
+        this.updateToolStrip.Text = "Check for Updates";
+        this.updateToolStrip.Click += new System.EventHandler(this.updateToolStrip_Click);
+        //
+        // diagnosticsToolStrip
+        //
+        this.diagnosticsToolStrip.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+        this.diagnosticsToolStrip.Name = "diagnosticsToolStrip";
+        this.diagnosticsToolStrip.Size = new System.Drawing.Size(110, 22);
+        this.diagnosticsToolStrip.Text = "Save Diagnostics";
+        this.diagnosticsToolStrip.Click += new System.EventHandler(this.diagnosticsToolStrip_Click);
         // 
         // groupBox1
         // 
@@ -231,6 +251,8 @@ partial class Form1
 
     private System.Windows.Forms.ToolStrip toolStrip1;
     private System.Windows.Forms.ToolStripButton aboutToolStrip;
+    private System.Windows.Forms.ToolStripButton updateToolStrip;
+    private System.Windows.Forms.ToolStripButton diagnosticsToolStrip;
     private System.Windows.Forms.GroupBox groupBox1;
     private System.Windows.Forms.Button Browse_SF;
     private System.Windows.Forms.TextBox textBox2;
