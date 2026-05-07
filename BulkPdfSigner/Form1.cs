@@ -10,6 +10,7 @@ public partial class Form1 : Form
         "or Mail me at kondapalliphaniteja@gmail.com";
 
     private readonly LicenseClient _license = new();
+    private readonly UpdateService _update = new();
     private X509Certificate2? _cert;
     private string _certUserName = "";
     private string _certSerial = "";
@@ -20,6 +21,8 @@ public partial class Form1 : Form
     public Form1()
     {
         InitializeComponent();
+
+        UpdateService.CleanupOldBackup();
 
         Text = $"Bulk PDF Signer - Version {Application.ProductVersion.Split('+')[0]}";
         Shown += async (s, e) => await OnShownAsync();
@@ -47,6 +50,7 @@ public partial class Form1 : Form
     {
         _license.StopPolling();
         _license.Dispose();
+        _update.Dispose();
         MessageBoxManager.Unregister();
     }
 
@@ -80,6 +84,7 @@ public partial class Form1 : Form
         {
             AppLogger.Info($"License loaded from cache (valid till {cached.ValidTill}, type {cached.LicType}).");
             _license.StartPolling();
+            _ = CheckForUpdateAsync();
             return;
         }
 
@@ -112,7 +117,60 @@ public partial class Form1 : Form
 
         AnnounceLicense(info);
         _license.StartPolling();
+        _ = CheckForUpdateAsync();
     }
+
+    // ---------- Auto-update ----------
+
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            var info = await _update.CheckForUpdateAsync();
+            if (info is null) return;
+
+            var notes = string.IsNullOrWhiteSpace(info.ReleaseNotes)
+                ? ""
+                : $"\nWhat's new:\n{Truncate(info.ReleaseNotes, 600)}\n";
+            var msg =
+                $"A new version of Bulk PDF Signer is available.\n\n" +
+                $"Current: {info.CurrentVersion}\n" +
+                $"Latest:  {info.NewVersion}\n" +
+                notes +
+                "\nDownload and install now? The app will restart automatically.";
+
+            var result = MessageBox.Show(msg, "Update Available",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (result != DialogResult.Yes)
+            {
+                AppLogger.Info("Update declined by user.");
+                return;
+            }
+
+            await _update.ApplyUpdateAsync(info, new Progress<double>(p =>
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    var pct = (int)(p * 100);
+                    if (pct % 10 == 0) AppLogger.Info($"Downloading update... {pct}%");
+                }));
+            }));
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Update failed: {ex.Message}");
+            MessageBox.Show(
+                $"Update failed: {ex.Message}\n\n" +
+                "You can continue using the current version. Download the latest manually from " +
+                "https://github.com/phanitejak/BulkPDFSigner/releases/latest",
+                "Update",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length <= max ? s : s.Substring(0, max) + "...";
 
     private void AnnounceLicense(LicenseInfo info)
     {
