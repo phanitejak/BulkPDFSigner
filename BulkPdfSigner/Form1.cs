@@ -165,12 +165,14 @@ public partial class Form1 : Form
                 return;
             }
 
+            AppLogger.Info("Downloading update...");
             await _update.ApplyUpdateAsync(info, new Progress<double>(p =>
             {
                 BeginInvoke(new Action(() =>
                 {
-                    var pct = (int)(p * 100);
-                    if (pct % 10 == 0) AppLogger.Info($"Downloading update... {pct}%");
+                    pgbar.Minimum = 0;
+                    pgbar.Maximum = 100;
+                    pgbar.Value = Math.Min(100, (int)(p * 100));
                 }));
             }));
         }
